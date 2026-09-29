@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Monochrome notification icon (Forge Audio "F" + equalizer bars). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="512" android:viewportHeight="512">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M128,382L128,152A22,22 0,0 1,150 130L362,130A22,22 0,0 1,362 174L172,174L172,234L270,234A22,22 0,0 1,270 278L172,278L172,382A22,22 0,0 1,128 382Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M300,247a11,11 0,0 1,22 0v113a11,11 0,0 1,-22 0z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M340,217a11,11 0,0 1,22 0v143a11,11 0,0 1,-22 0z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M380,277a11,11 0,0 1,22 0v83a11,11 0,0 1,-22 0z"/>
+</vector>

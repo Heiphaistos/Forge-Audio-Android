@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <title>Forge Audio</title>
+  <style>
+    :root { --accent: #ff6a1a; --bg: #0b0908; --surface: #151210; --surface-3: #27221e; --text: #f6f3f1; --muted: #a39b95; --danger: #ff5a5f; --border: rgba(255,255,255,.08); }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    body { display: flex; align-items: center; justify-content: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); overflow: hidden; }
+    .glow { position: fixed; inset: -30%; pointer-events: none; filter: blur(40px);
+      background: radial-gradient(circle at 30% 30%, rgba(255,106,26,.28), transparent 45%), radial-gradient(circle at 75% 70%, rgba(215,38,61,.2), transparent 45%); }
+    .card { position: relative; width: min(420px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 28px 22px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 30px 80px rgba(0,0,0,.55); }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 700; }
+    .logo b { background: linear-gradient(90deg, #ffb347, #ff6a1a 55%, #d7263d); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    h1 { margin: 0; font-size: 24px; }
+    p { margin: 0; color: var(--muted); font-size: 14px; }
+    label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+    input { width: 100%; font: inherit; color: var(--text); background: var(--surface-3); border: 1px solid var(--border); border-radius: 10px; padding: 13px 12px; outline: none; }
+    input:focus { border-color: rgba(255,106,26,.7); }
+    button { font: inherit; font-weight: 700; border: 0; border-radius: 999px; padding: 13px; background: var(--accent); color: #140b05; cursor: pointer; }
+    button:disabled { opacity: .5; }
+    .error { color: var(--danger); font-size: 13px; min-height: 1em; }
+    .hint { font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <form class="card" id="form" hidden>
+    <div class="logo">
+      <svg width="30" height="30" viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb347"/><stop offset=".55" stop-color="#ff6a1a"/><stop offset="1" stop-color="#d7263d"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="#140f0c"/><path d="M150 360V152h212" fill="none" stroke="url(#g)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/><path d="M150 256h120" fill="none" stroke="url(#g)" stroke-width="44" stroke-linecap="round"/><g fill="url(#g)"><rect x="300" y="236" width="22" height="124" rx="11"/><rect x="340" y="206" width="22" height="154" rx="11"/><rect x="380" y="266" width="22" height="94" rx="11"/></g></svg>
+      <span>Forge <b>Audio</b></span>
+    </div>
+    <div>
+      <h1>Votre serveur</h1>
+      <p>Entrez l'adresse de votre serveur Forge Audio. Vous vous connecterez ensuite avec votre compte.</p>
+    </div>
+    <label>Adresse du serveur
+      <input id="url" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" placeholder="https://musique.mon-vps.fr" required />
+    </label>
+    <div class="error" id="error"></div>
+    <button id="go" type="submit">Continuer</button>
+    <p class="hint">Vous pourrez changer de serveur plus tard dans Paramètres → Application mobile.</p>
+  </form>
+  <script>
+    const KEY = 'forge.server';
+    const params = new URLSearchParams(location.search);
+    const saved = localStorage.getItem(KEY);
+    const form = document.getElementById('form');
+    const input = document.getElementById('url');
+    const error = document.getElementById('error');
+    const go = document.getElementById('go');
+
+    function normalize(value) {
+      let v = value.trim();
+      if (!/^https?:\/\//i.test(v)) v = `https://${v}`;
+      const u = new URL(v);
+      return u.origin;
+    }
+
+    if (saved && !params.has('change')) {
+      location.replace(`${saved}/`);
+    } else {
+      form.hidden = false;
+      if (saved) input.value = saved;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      error.textContent = '';
+      let origin;
+      try { origin = normalize(input.value); } catch { error.textContent = 'Adresse invalide'; return; }
+      go.disabled = true;
+      go.textContent = 'Vérification…';
+      try {
+        const res = await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(8000) });
+        const body = await res.json();
+        if (!body || !body.ok) throw new Error();
+      } catch {
+        error.textContent = `Aucun serveur Forge Audio ne répond à ${origin}`;
+        go.disabled = false;
+        go.textContent = 'Continuer';
+        return;
+      }
+      localStorage.setItem(KEY, origin);
+      location.replace(`${origin}/`);
+    });
+  </script>
+</body>
+</html>

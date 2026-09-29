@@ -1,0 +1,6 @@
+node_modules/
+*.log
+.DS_Store
+/release/
+*.keystore
+!keystore/forge-audio-shared.jks

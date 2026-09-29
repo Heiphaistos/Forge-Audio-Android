@@ -1,0 +1,125 @@
+name: Applications mobiles
+
+# Builds the Android APK and the iOS app.
+# - Push on any branch: builds and uploads the files as run artifacts (Actions tab → run → Artifacts).
+# - Tag `v*` (e.g. v0.4.0): also publishes them in a GitHub release.
+# - Manual run (Actions → Applications mobiles → Run workflow): optional server address baked into the app.
+#
+# Server address: input `server_url`, else the repository variable FORGE_SERVER_URL
+# (Settings → Secrets and variables → Actions → Variables). Empty: the app asks for it at first launch.
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: "Adresse du serveur Forge Audio intégrée à l'app (vide = demandée au premier lancement)"
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+env:
+  FORGE_SERVER_URL: ${{ github.event.inputs.server_url || vars.FORGE_SERVER_URL }}
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Version
+        id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else V="$(node -p 'require("./package.json").version')"; fi
+          echo "name=$V" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npx cap sync android
+      - name: Release key (optional secrets)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "Signature : clé privée (secrets du dépôt)"
+          else
+            echo "::warning::Pas de secret ANDROID_KEYSTORE_BASE64 : APK signé avec la clé partagée du dépôt (voir README)."
+          fi
+      - name: Build APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_NAME: ${{ steps.v.outputs.name }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease bundleRelease
+          mkdir -p ../release
+          cp app/build/outputs/apk/release/app-release.apk "../release/ForgeAudio-${VERSION_NAME}-android.apk"
+          # Fixed name: https://github.com/<owner>/<repo>/releases/latest/download/ForgeAudio-android.apk never changes.
+          cp app/build/outputs/apk/release/app-release.apk ../release/ForgeAudio-android.apk
+          # Play Store upload format
+          cp app/build/outputs/bundle/release/app-release.aab "../release/ForgeAudio-${VERSION_NAME}-android.aab"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forge-audio-android
+          path: |
+            release/*.apk
+            release/*.aab
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.apk
+            release/*.aab
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Version
+        id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else V="$(node -p 'require("./package.json").version')"; fi
+          echo "name=$V" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npx cap sync ios
+      - name: Build (unsigned)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION="${{ steps.v.outputs.name }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - name: Package IPA (to sign with your own Apple account / Sideloadly / AltStore)
+        run: |
+          mkdir -p release Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry "release/ForgeAudio-${{ steps.v.outputs.name }}-ios-unsigned.ipa" Payload
+          cp "release/ForgeAudio-${{ steps.v.outputs.name }}-ios-unsigned.ipa" release/ForgeAudio-ios-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forge-audio-ios
+          path: release/*.ipa
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.ipa
