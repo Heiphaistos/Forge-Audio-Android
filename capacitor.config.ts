@@ -23,7 +23,8 @@ const config: CapacitorConfig = {
     cleartext: true,
   },
   android: {
-    allowMixedContent: false,
+    // The setup screen (https://localhost) must reach http:// servers on a local network.
+    allowMixedContent: true,
     captureInput: true,
   },
   ios: {

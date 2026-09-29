@@ -1,6 +1,6 @@
 {
   "name": "forge-audio-mobile",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Forge Audio pour Android et iOS (Capacitor) — se connecte à votre serveur Forge Audio",
   "scripts": {

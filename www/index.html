@@ -46,6 +46,7 @@
   </form>
   <script>
     const KEY = 'forge.server';
+    const DEFAULT_SERVER = 'https://connect.forgeaudio.heiphaistos.org';
     const params = new URLSearchParams(location.search);
     const saved = localStorage.getItem(KEY);
     const form = document.getElementById('form');
@@ -64,7 +65,7 @@
       location.replace(`${saved}/`);
     } else {
       form.hidden = false;
-      if (saved) input.value = saved;
+      input.value = saved || DEFAULT_SERVER;
     }
 
     form.addEventListener('submit', async (e) => {
