@@ -5,8 +5,12 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.media.AudioManager;
+import android.os.SystemClock;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -30,8 +34,10 @@ import java.util.concurrent.Executors;
 
 /**
  * Foreground "media playback" service: keeps Forge Audio alive with the screen off or in another app,
- * shows the media notification (artwork, previous / play-pause / next / close) and receives
- * lock-screen, Bluetooth and headset buttons through a MediaSession.
+ * shows the media notification (artwork, progress bar, previous / play-pause / next / close), receives
+ * lock-screen, Bluetooth and headset buttons through a MediaSession, and pauses when headphones are unplugged.
+ * Audio focus (phone call, another player) is handled by the WebView itself (Chromium AudioFocusDelegate):
+ * requesting it here too makes the two fight and pauses playback as soon as it starts.
  */
 public class PlaybackService extends Service {
 
@@ -46,10 +52,13 @@ public class PlaybackService extends Service {
     static final String ACTION_CLOSE = "org.heiphaistos.forgeaudio.CLOSE";
 
     private static boolean running = false;
+    private static long lastUpdate = 0;
     private static String title = "";
     private static String author = "";
     private static String thumb = null;
     private static boolean playing = false;
+    private static double position = 0;
+    private static double duration = -1;
 
     private MediaSessionCompat session;
     private WifiManager.WifiLock wifiLock;
@@ -59,14 +68,32 @@ public class PlaybackService extends Service {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable idleStop = this::stopSelf;
     private String lastKey = "";
+    private boolean noisyRegistered = false;
+
+    /** Headphones unplugged or Bluetooth disconnected: pause instead of playing through the speaker. */
+    private final BroadcastReceiver noisy = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())) MainActivity.remote("pause");
+        }
+    };
+
 
     /** Called by MainActivity with the web player's state. Starts the service on first playback. */
-    static void update(Context context, String t, String a, String th, boolean p) {
-        boolean changed = !t.equals(title) || !a.equals(author) || p != playing || (th == null ? thumb != null : !th.equals(thumb));
+    static void update(Context context, String t, String a, String th, boolean p, double pos, double dur) {
+        // Position far from where the progress bar extrapolates it = the user seeked in the app.
+        double expected = position + (playing ? (SystemClock.elapsedRealtime() - lastUpdate) / 1000.0 : 0);
+        boolean changed = !t.equals(title) || !a.equals(author) || p != playing || (th == null ? thumb != null : !th.equals(thumb))
+            || Math.abs(pos - expected) > 2 || Math.abs(dur - duration) > 1;
         title = t;
         author = a;
         thumb = th;
         playing = p;
+        if (changed) {
+            position = pos;
+            duration = dur;
+            lastUpdate = SystemClock.elapsedRealtime();
+        }
         if (!running && !p) return;
         if (!changed && running) return;
         Intent intent = new Intent(context, PlaybackService.class).setAction(ACTION_UPDATE);
@@ -90,6 +117,7 @@ public class PlaybackService extends Service {
             @Override public void onSkipToNext() { MainActivity.remote("next"); }
             @Override public void onSkipToPrevious() { MainActivity.remote("prev"); }
             @Override public void onStop() { MainActivity.remote("pause"); }
+            @Override public void onSeekTo(long ms) { MainActivity.remote("seek", ms / 1000.0); }
         });
         Intent open = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         session.setSessionActivity(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
@@ -144,12 +172,16 @@ public class PlaybackService extends Service {
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, author)
             .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, artwork)
+            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration > 0 ? (long) (duration * 1000) : -1)
             .build());
         session.setPlaybackState(new PlaybackStateCompat.Builder()
             .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PAUSE | PlaybackStateCompat.ACTION_PLAY_PAUSE
-                | PlaybackStateCompat.ACTION_SKIP_TO_NEXT | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_STOP)
-            .setState(playing ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1f)
+                | PlaybackStateCompat.ACTION_SKIP_TO_NEXT | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_STOP
+                | (duration > 0 ? PlaybackStateCompat.ACTION_SEEK_TO : 0))
+            .setState(playing ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED,
+                duration > 0 ? (long) (position * 1000) : PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, playing ? 1f : 0f, lastUpdate)
             .build());
+        syncNoisyReceiver();
 
         Intent open = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         Notification notification = new NotificationCompat.Builder(this, CHANNEL)
@@ -201,9 +233,24 @@ public class PlaybackService extends Service {
                 HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
                 c.setConnectTimeout(8000);
                 c.setReadTimeout(8000);
+                byte[] data;
                 try (InputStream in = c.getInputStream()) {
-                    bmp = BitmapFactory.decodeStream(in);
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[16384];
+                    for (int n; (n = in.read(buf)) > 0; ) {
+                        out.write(buf, 0, n);
+                        if (out.size() > 8 * 1024 * 1024) throw new java.io.IOException("artwork too large");
+                    }
+                    data = out.toByteArray();
                 }
+                // Decode at about 512 px: a full-size cover in a notification wastes memory and can be refused.
+                BitmapFactory.Options o = new BitmapFactory.Options();
+                o.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(data, 0, data.length, o);
+                o.inSampleSize = 1;
+                while (Math.max(o.outWidth, o.outHeight) / (o.inSampleSize * 2) >= 512) o.inSampleSize *= 2;
+                o.inJustDecodeBounds = false;
+                bmp = BitmapFactory.decodeByteArray(data, 0, data.length, o);
             } catch (Exception ignored) {
                 // no artwork
             }
@@ -215,6 +262,17 @@ public class PlaybackService extends Service {
                 showNotification();
             });
         });
+    }
+
+    /** Listen for unplugged headphones only while playing. */
+    private void syncNoisyReceiver() {
+        if (playing && !noisyRegistered) {
+            registerReceiver(noisy, new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY));
+            noisyRegistered = true;
+        } else if (!playing && noisyRegistered) {
+            unregisterReceiver(noisy);
+            noisyRegistered = false;
+        }
     }
 
     @Override
@@ -229,6 +287,8 @@ public class PlaybackService extends Service {
         running = false;
         handler.removeCallbacks(idleStop);
         if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
+        if (noisyRegistered) unregisterReceiver(noisy);
+        noisyRegistered = false;
         session.setActive(false);
         session.release();
         io.shutdownNow();

@@ -17,10 +17,16 @@ const config: CapacitorConfig = {
   server: {
     ...(server ? { url: server } : {}),
     androidScheme: 'https',
-    // The server address is chosen by the user: allow navigating to it inside the app.
+    // The server address is chosen by the user: allow navigating to it (ForgeWeb.shouldOverrideLoad sends other sites to the browser).
     allowNavigation: ['*'],
     // Allow http:// servers on a local network.
     cleartext: true,
+    // Server unreachable (offline, server down): bundled page with Retry / Change server instead of a browser error.
+    errorPath: 'error.html',
+  },
+  plugins: {
+    // Light icons on the dark status and navigation bars.
+    SystemBars: { style: 'DARK' },
   },
   android: {
     // The setup screen (https://localhost) must reach http:// servers on a local network.

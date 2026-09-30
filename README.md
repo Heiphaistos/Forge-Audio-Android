@@ -14,8 +14,16 @@ Application mobile de [Forge Audio](https://github.com/Heiphaistos/Forge-audio-)
 
 - Affiche l'interface complète de Forge Audio (connexion, recherche YouTube / SoundCloud / Dailymotion / Spotify…, playlists, paroles, vidéo, égaliseur…).
 - **La musique continue en arrière-plan** : écran verrouillé, dans une autre application, ou après avoir appuyé sur Retour. Sur Android, un service de lecture au premier plan (notification « Lecture en cours ») empêche le système de la couper, et un verrou Wi-Fi évite les coupures de flux.
-- **Notification média** (Android) avec la pochette et les boutons ⏮ ⏯ ⏭ ✕ ; commandes de l'écran de verrouillage, du casque et du Bluetooth.
-- Au premier lancement, l'application demande l'**adresse du serveur** (sauf si elle est intégrée à la compilation, voir plus bas). On peut en changer dans *Paramètres → Application mobile*.
+- **Notification média** (Android) avec la pochette, une **barre de progression déplaçable** et les boutons ⏮ ⏯ ⏭ ✕ ; commandes de l'écran de verrouillage, du casque et du Bluetooth.
+- Se comporte comme une vraie application de musique : **pause pendant un appel** (reprise après), **pause quand le casque est débranché** ou le Bluetooth déconnecté.
+- **Partager → Forge Audio** depuis YouTube, Spotify, SoundCloud, Deezer… : le titre est lu, une playlist est importée.
+- **Retour** ferme d'abord le panneau ouvert (lecteur plein écran, menu, égaliseur…) puis revient à la vue précédente ; sur l'écran d'accueil il réduit l'application sans couper la musique.
+- **Vidéo en plein écran** (paysage, barres masquées ; Retour pour sortir).
+- **Téléchargements** (MP3, audio, vidéo) et **export** de la bibliothèque enregistrés dans *Téléchargements*.
+- Les liens vers d'autres sites (source YouTube, GitHub…) s'ouvrent dans le navigateur, pas dans l'application.
+- **Hors ligne ou serveur arrêté** : page « Serveur injoignable » avec *Réessayer* et *Changer de serveur*, nouvel essai automatique au retour du réseau.
+- **Mises à jour** : l'application vérifie une fois par jour s'il existe une version plus récente et propose de la télécharger.
+- Au premier lancement, l'application demande l'**adresse du serveur**, préremplie avec `https://connect.forgeaudio.heiphaistos.org` ; on peut en changer dans *Paramètres → Application mobile*. Les serveurs `http://` d'un réseau local sont acceptés.
 
 > La musique s'arrête seulement si vous **fermez l'application depuis les applications récentes** (balayage) ou avec le bouton ✕ de la notification.
 
@@ -25,14 +33,16 @@ Les fichiers sont dans les [Releases](../../releases/latest).
 
 ### Android
 
-1. Téléchargez `ForgeAudio-android.apk` sur le téléphone.
-2. Ouvrez-le ; Android demande d'autoriser l'installation depuis le navigateur ou le gestionnaire de fichiers : acceptez.
+1. Téléchargez l'APK sur le téléphone : **https://forgeaudio.heiphaistos.org/ForgeAudio-android.apk** (ou `ForgeAudio-android.apk` dans les Releases). Si Chrome affiche « Ce fichier peut être dangereux », appuyez sur **Télécharger quand même** : sans cette confirmation, le téléchargement reste bloqué à 100 %.
+2. Ouvrez-le ; Android demande d'autoriser l'installation depuis le navigateur ou le gestionnaire de fichiers : acceptez, puis **Installer**.
 3. Lancez **Forge Audio**, entrez l'adresse de votre serveur, connectez-vous.
 4. Acceptez les **notifications** (Android 13+) : c'est la notification qui garde la musique en arrière-plan et donne les commandes.
 
 Conseil : sur certains téléphones (Xiaomi, Huawei, Samsung…), désactivez l'« optimisation de la batterie » pour Forge Audio (*Paramètres → Applications → Forge Audio → Batterie → Aucune restriction*) pour de longues écoutes écran éteint.
 
-Les mises à jour s'installent par-dessus (mêmes données) tant que les APK sont signés avec la même clé (voir [Signature](#-signature-android)).
+Les mises à jour s'installent par-dessus (mêmes données) tant que les APK sont signés avec la même clé (voir [Signature](#-signature-android)). Les versions jusqu'à la 0.4.1 étaient signées avec la clé partagée : désinstallez-les une fois avant d'installer la 0.4.2 ou plus récente.
+
+**Désinstaller** : appui long sur l'icône Forge Audio → *Désinstaller* (ou *Paramètres → Applications → Forge Audio → Désinstaller*). Le compte et les playlists restent sur le serveur.
 
 ### 📱 iPhone / iPad
 
@@ -56,7 +66,7 @@ https://github.com/Heiphaistos/Forge-Audio-Android/releases/latest/download/Forg
 Exemple de boutons à mettre sur une page du site :
 
 ```html
-<a href="https://github.com/Heiphaistos/Forge-Audio-Android/releases/latest/download/ForgeAudio-android.apk">Télécharger pour Android</a>
+<a href="https://forgeaudio.heiphaistos.org/ForgeAudio-android.apk">Télécharger pour Android</a>
 <a href="https://github.com/Heiphaistos/Forge-Audio-Android/releases/latest">iPhone / iPad (instructions)</a>
 <a href="https://github.com/Heiphaistos/Forge-audio-/releases/latest">Windows · macOS · Linux</a>
 ```

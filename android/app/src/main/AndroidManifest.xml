@@ -23,6 +23,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- "Share → Forge Audio" from YouTube, Spotify, SoundCloud, Deezer…: plays or imports the link. -->
+            <intent-filter android:label="Écouter dans Forge Audio">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
         </activity>
 
         <!-- Background playback: media notification, lock screen and headset buttons. -->
