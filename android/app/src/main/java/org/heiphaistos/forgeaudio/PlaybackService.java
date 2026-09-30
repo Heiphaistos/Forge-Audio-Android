@@ -50,6 +50,7 @@ public class PlaybackService extends Service {
     static final String ACTION_NEXT = "org.heiphaistos.forgeaudio.NEXT";
     static final String ACTION_PREV = "org.heiphaistos.forgeaudio.PREV";
     static final String ACTION_CLOSE = "org.heiphaistos.forgeaudio.CLOSE";
+    static final String ACTION_LIKE = "org.heiphaistos.forgeaudio.LIKE";
 
     private static boolean running = false;
     private static long lastUpdate = 0;
@@ -59,6 +60,7 @@ public class PlaybackService extends Service {
     private static boolean playing = false;
     private static double position = 0;
     private static double duration = -1;
+    private static boolean liked = false;
 
     private MediaSessionCompat session;
     private WifiManager.WifiLock wifiLock;
@@ -80,11 +82,12 @@ public class PlaybackService extends Service {
 
 
     /** Called by MainActivity with the web player's state. Starts the service on first playback. */
-    static void update(Context context, String t, String a, String th, boolean p, double pos, double dur) {
+    static void update(Context context, String t, String a, String th, boolean p, double pos, double dur, boolean isLiked) {
         // Position far from where the progress bar extrapolates it = the user seeked in the app.
         double expected = position + (playing ? (SystemClock.elapsedRealtime() - lastUpdate) / 1000.0 : 0);
         boolean changed = !t.equals(title) || !a.equals(author) || p != playing || (th == null ? thumb != null : !th.equals(thumb))
-            || Math.abs(pos - expected) > 2 || Math.abs(dur - duration) > 1;
+            || Math.abs(pos - expected) > 2 || Math.abs(dur - duration) > 1 || isLiked != liked;
+        liked = isLiked;
         title = t;
         author = a;
         thumb = th;
@@ -118,6 +121,7 @@ public class PlaybackService extends Service {
             @Override public void onSkipToPrevious() { MainActivity.remote("prev"); }
             @Override public void onStop() { MainActivity.remote("pause"); }
             @Override public void onSeekTo(long ms) { MainActivity.remote("seek", ms / 1000.0); }
+            @Override public void onCustomAction(String action, android.os.Bundle extras) { if ("like".equals(action)) MainActivity.remote("like"); }
         });
         Intent open = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         session.setSessionActivity(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
@@ -142,6 +146,8 @@ public class PlaybackService extends Service {
             MainActivity.remote("next");
         } else if (ACTION_PREV.equals(action)) {
             MainActivity.remote("prev");
+        } else if (ACTION_LIKE.equals(action)) {
+            MainActivity.remote("like");
         } else if (ACTION_CLOSE.equals(action)) {
             MainActivity.remote("pause");
             stopSelf();
@@ -164,7 +170,7 @@ public class PlaybackService extends Service {
     }
 
     private void showNotification() {
-        String key = title + "|" + author + "|" + playing + "|" + (artwork != null);
+        String key = title + "|" + author + "|" + playing + "|" + liked + "|" + (artwork != null);
         boolean fresh = !key.equals(lastKey);
         lastKey = key;
 
@@ -180,6 +186,8 @@ public class PlaybackService extends Service {
                 | (duration > 0 ? PlaybackStateCompat.ACTION_SEEK_TO : 0))
             .setState(playing ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED,
                 duration > 0 ? (long) (position * 1000) : PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, playing ? 1f : 0f, lastUpdate)
+            .addCustomAction(new PlaybackStateCompat.CustomAction.Builder("like", liked ? "Retirer des titres likés" : "J'aime",
+                liked ? R.drawable.ic_liked : R.drawable.ic_like).build())
             .build());
         syncNoisyReceiver();
 
@@ -198,6 +206,7 @@ public class PlaybackService extends Service {
             .addAction(android.R.drawable.ic_media_previous, "Précédent", action(ACTION_PREV, 2))
             .addAction(playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play, playing ? "Pause" : "Lecture", action(ACTION_TOGGLE, 3))
             .addAction(android.R.drawable.ic_media_next, "Suivant", action(ACTION_NEXT, 4))
+            .addAction(liked ? R.drawable.ic_liked : R.drawable.ic_like, liked ? "Retirer des titres likés" : "J'aime", action(ACTION_LIKE, 6))
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Fermer", action(ACTION_CLOSE, 5))
             .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
                 .setMediaSession(session.getSessionToken())

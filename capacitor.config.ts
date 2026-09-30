@@ -25,8 +25,9 @@ const config: CapacitorConfig = {
     errorPath: 'error.html',
   },
   plugins: {
-    // Light icons on the dark status and navigation bars.
-    SystemBars: { style: 'DARK' },
+    // Light icons on the dark status and navigation bars. Insets are applied natively (MainActivity):
+    // with a recent WebView and viewport-fit=cover, Capacitor's 'css' mode lets the page draw under the bars.
+    SystemBars: { style: 'DARK', insetsHandling: 'disable' },
   },
   android: {
     // The setup screen (https://localhost) must reach http:// servers on a local network.

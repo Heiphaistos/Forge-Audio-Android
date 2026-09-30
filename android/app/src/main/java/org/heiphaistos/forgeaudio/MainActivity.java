@@ -11,6 +11,10 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
+import android.view.View;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
@@ -53,6 +57,7 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge().getWebView();
         ForgeWeb.chrome = new ForgeWeb.FullscreenChromeClient(getBridge());
         webView.setWebChromeClient(ForgeWeb.chrome);
+        keepClearOfSystemBars((View) webView.getParent());
         // The player starts tracks by itself (next track, radio): no user gesture needed.
         webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
 
@@ -79,6 +84,20 @@ public class MainActivity extends BridgeActivity {
         takeShare(getIntent());
         handler.post(poll);
         handler.postDelayed(this::checkUpdate, 8000);
+    }
+
+    /**
+     * The app stops above the navigation buttons / gesture bar and below the status bar and camera cutout,
+     * on every phone and WebView version (Android 15+ draws apps edge to edge). The keyboard pushes it up too.
+     */
+    private static void keepClearOfSystemBars(View root) {
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+            return WindowInsetsCompat.CONSUMED;
+        });
+        ViewCompat.requestApplyInsets(root);
     }
 
     /** The fullscreen video view swallows the Back key before the back dispatcher sees it. */
@@ -129,7 +148,7 @@ public class MainActivity extends BridgeActivity {
         super.onDestroy();
     }
 
-    /** Send a command (toggle, play, pause, next, prev) to the web player. */
+    /** Send a command (toggle, play, pause, next, prev, like) to the web player. */
     static void remote(String action) {
         remote(action, Double.NaN);
     }
@@ -165,7 +184,7 @@ public class MainActivity extends BridgeActivity {
             String thumb = np.isNull("thumbnail") ? null : np.optString("thumbnail", null);
             double duration = np.isNull("duration") ? -1 : np.optDouble("duration", -1);
             PlaybackService.update(this, np.optString("title", ""), np.optString("author", ""), thumb,
-                np.optBoolean("playing", false), np.optDouble("position", 0), duration);
+                np.optBoolean("playing", false), np.optDouble("position", 0), duration, np.optBoolean("liked", false));
         } catch (Exception ignored) {
             // Page without the player (login screen, server setup)
         }
