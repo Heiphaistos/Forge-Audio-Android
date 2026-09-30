@@ -1,11 +1,8 @@
 package org.heiphaistos.forgeaudio;
 
 import android.Manifest;
-import androidx.appcompat.app.AlertDialog;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -18,12 +15,7 @@ import androidx.core.view.WindowInsetsCompat;
 import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.lang.ref.WeakReference;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -45,8 +37,6 @@ public class MainActivity extends BridgeActivity {
 
     private static final String NOW_PLAYING_JS =
         "(function(){try{return window.__forgeNowPlaying?JSON.stringify(window.__forgeNowPlaying()):null}catch(e){return null}})()";
-    private static final String RELEASES_API = "https://api.github.com/repos/Heiphaistos/Forge-Audio-Android/releases/latest";
-    private static final String APK_URL = "https://forgeaudio.heiphaistos.org/ForgeAudio-android.apk";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -83,7 +73,7 @@ public class MainActivity extends BridgeActivity {
 
         takeShare(getIntent());
         handler.post(poll);
-        handler.postDelayed(this::checkUpdate, 8000);
+        handler.postDelayed(() -> Updater.check(this), 8000);
     }
 
     /**
@@ -130,6 +120,13 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().evaluateJavascript(
             "(function(){if(!window.__forgeOpenLink)return false;window.__forgeOpenLink(" + JSONObject.quote(text) + ");return true})()",
             done -> { if ("true".equals(done) && text.equals(pendingShare)) pendingShare = null; });
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Updater.resume(this);
+        Updater.check(this);
     }
 
     @Override
@@ -188,49 +185,6 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {
             // Page without the player (login screen, server setup)
         }
-    }
-
-    /** Sideloaded APKs get no store updates: once a day, offer the newer release. */
-    private void checkUpdate() {
-        SharedPreferences prefs = getSharedPreferences("forge", MODE_PRIVATE);
-        long now = System.currentTimeMillis();
-        if (now - prefs.getLong("updateCheck", 0) < 24 * 3600 * 1000L) return;
-        final String installed;
-        try {
-            installed = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-        } catch (Exception e) {
-            return;
-        }
-        new Thread(() -> {
-            try {
-                HttpURLConnection c = (HttpURLConnection) new URL(RELEASES_API).openConnection();
-                c.setConnectTimeout(8000);
-                c.setReadTimeout(8000);
-                c.setRequestProperty("Accept", "application/vnd.github+json");
-                String body;
-                try (InputStream in = c.getInputStream()) {
-                    ByteArrayOutputStream out = new ByteArrayOutputStream();
-                    byte[] buf = new byte[8192];
-                    for (int n; (n = in.read(buf)) > 0 && out.size() < 1_000_000; ) out.write(buf, 0, n);
-                    body = out.toString(StandardCharsets.UTF_8.name());
-                }
-                prefs.edit().putLong("updateCheck", now).apply();
-                String latest = new JSONObject(body).optString("tag_name", "").replaceFirst("^v", "");
-                if (!isNewer(latest, installed) || latest.equals(prefs.getString("updateSkipped", ""))) return;
-                runOnUiThread(() -> {
-                    if (isFinishing()) return;
-                    new AlertDialog.Builder(this)
-                        .setTitle("Mise à jour disponible")
-                        .setMessage("Forge Audio " + latest + " est disponible (vous avez la " + installed + "). Téléchargez-la (si Chrome affiche « Ce fichier peut être dangereux », appuyez sur « Télécharger quand même »), puis ouvrez le fichier pour l'installer par-dessus : vos playlists et votre compte sont conservés.")
-                        .setPositiveButton("Télécharger", (d, w) -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(APK_URL))))
-                        .setNegativeButton("Plus tard", null)
-                        .setNeutralButton("Ignorer cette version", (d, w) -> prefs.edit().putString("updateSkipped", latest).apply())
-                        .show();
-                });
-            } catch (Exception ignored) {
-                // offline or API limit: retried at next launch
-            }
-        }).start();
     }
 
     /** Compares dotted versions (0.4.10 > 0.4.9). */

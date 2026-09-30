@@ -35,14 +35,14 @@
     </div>
     <div>
       <h1>Votre serveur</h1>
-      <p>Entrez l'adresse de votre serveur Forge Audio. Vous vous connecterez ensuite avec votre compte.</p>
+      <p>Adresse du serveur Forge Audio (par défaut <b>connect.forgeaudio.heiphaistos.org</b>). Vous vous connecterez ensuite avec votre compte.</p>
     </div>
     <label>Adresse du serveur
       <input id="url" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" placeholder="https://musique.mon-vps.fr" required />
     </label>
     <div class="error" id="error"></div>
     <button id="go" type="submit">Continuer</button>
-    <p class="hint">Vous pourrez changer de serveur plus tard dans Paramètres → Application mobile.</p>
+    <p class="hint">Vous pourrez changer de serveur plus tard depuis la page de connexion ou dans Paramètres → Application mobile.</p>
   </form>
   <script>
     const KEY = 'forge.server';
@@ -61,8 +61,10 @@
       return u.origin;
     }
 
-    if (saved && !params.has('change')) {
-      location.replace(`${saved}/`);
+    // First launch: straight to the Forge Audio login page (same accounts as the website) on the usual server;
+    // another server can be chosen from that login page or in Paramètres (« Changer de serveur »).
+    if (!params.has('change')) {
+      location.replace(`${saved || DEFAULT_SERVER}/`);
     } else {
       form.hidden = false;
       input.value = saved || DEFAULT_SERVER;
