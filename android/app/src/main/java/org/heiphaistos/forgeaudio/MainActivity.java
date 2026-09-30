@@ -48,6 +48,9 @@ public class MainActivity extends BridgeActivity {
         ForgeWeb.chrome = new ForgeWeb.FullscreenChromeClient(getBridge());
         webView.setWebChromeClient(ForgeWeb.chrome);
         keepClearOfSystemBars((View) webView.getParent());
+        // « ForgeAudioApp/<version> »: the web app shows the installed version in Paramètres (appendUserAgent adds the name only).
+        String version = Updater.installedVersion(this);
+        if (version != null) webView.getSettings().setUserAgentString(webView.getSettings().getUserAgentString().replace("ForgeAudioApp", "ForgeAudioApp/" + version));
         // The player starts tracks by itself (next track, radio): no user gesture needed.
         webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
 
