@@ -4,4 +4,5 @@
     <string name="title_activity_main">Forge Audio</string>
     <string name="package_name">org.heiphaistos.forgeaudio</string>
     <string name="custom_url_scheme">org.heiphaistos.forgeaudio</string>
+    <string name="widget_description">Titre en cours et commandes de lecture</string>
 </resources>

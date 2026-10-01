@@ -43,6 +43,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ForgeWeb.class);
         super.onCreate(savedInstanceState);
         current = new WeakReference<>(this);
+        ForgeWidget.refresh(this);
 
         WebView webView = getBridge().getWebView();
         ForgeWeb.chrome = new ForgeWeb.FullscreenChromeClient(getBridge());
@@ -145,7 +146,14 @@ public class MainActivity extends BridgeActivity {
     public void onDestroy() {
         handler.removeCallbacksAndMessages(null);
         stopService(new Intent(this, PlaybackService.class));
+        if (current.get() == this) current = new WeakReference<>(null);
+        ForgeWidget.refresh(this);
         super.onDestroy();
+    }
+
+    /** A web player is there to receive commands. */
+    static boolean isAlive() {
+        return current.get() != null;
     }
 
     /** Send a command (toggle, play, pause, next, prev, like) to the web player. */

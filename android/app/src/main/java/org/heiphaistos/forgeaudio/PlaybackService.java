@@ -54,10 +54,11 @@ public class PlaybackService extends Service {
 
     private static boolean running = false;
     private static long lastUpdate = 0;
-    private static String title = "";
-    private static String author = "";
+    // Read by ForgeWidget.
+    static String title = "";
+    static String author = "";
     private static String thumb = null;
-    private static boolean playing = false;
+    static boolean playing = false;
     private static double position = 0;
     private static double duration = -1;
     private static boolean liked = false;
@@ -87,6 +88,7 @@ public class PlaybackService extends Service {
         double expected = position + (playing ? (SystemClock.elapsedRealtime() - lastUpdate) / 1000.0 : 0);
         boolean changed = !t.equals(title) || !a.equals(author) || p != playing || (th == null ? thumb != null : !th.equals(thumb))
             || Math.abs(pos - expected) > 2 || Math.abs(dur - duration) > 1 || isLiked != liked;
+        if (th == null ? thumb != null : !th.equals(thumb)) ForgeWidget.art = null;
         liked = isLiked;
         title = t;
         author = a;
@@ -96,6 +98,7 @@ public class PlaybackService extends Service {
             position = pos;
             duration = dur;
             lastUpdate = SystemClock.elapsedRealtime();
+            ForgeWidget.refresh(context);
         }
         if (!running && !p) return;
         if (!changed && running) return;
@@ -267,8 +270,10 @@ public class PlaybackService extends Service {
             handler.post(() -> {
                 if (!url.equals(artworkUrl)) return;
                 artwork = result;
+                ForgeWidget.art = result == null ? null : Bitmap.createScaledBitmap(result, 256, 256 * result.getHeight() / Math.max(1, result.getWidth()), true);
                 lastKey = "";
                 showNotification();
+                ForgeWidget.refresh(this);
             });
         });
     }
@@ -294,6 +299,8 @@ public class PlaybackService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        playing = false;
+        ForgeWidget.refresh(this);
         handler.removeCallbacks(idleStop);
         if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
         if (noisyRegistered) unregisterReceiver(noisy);
