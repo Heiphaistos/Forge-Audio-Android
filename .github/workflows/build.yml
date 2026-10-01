@@ -53,8 +53,12 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
             echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
             echo "Signature : clé privée (secrets du dépôt)"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # Une release signee avec la cle publique du depot permettrait a n importe qui de fabriquer une fausse mise a jour.
+            echo "::error::Release sans secret ANDROID_KEYSTORE_BASE64 : refus de signer avec la cle partagee publique."
+            exit 1
           else
-            echo "::warning::Pas de secret ANDROID_KEYSTORE_BASE64 : APK signé avec la clé partagée du dépôt (voir README)."
+            echo "::warning::Pas de secret ANDROID_KEYSTORE_BASE64 : APK de test signe avec la cle partagee du depot (jamais pour une release)."
           fi
       - name: Build APK
         working-directory: android
