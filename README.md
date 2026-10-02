@@ -18,6 +18,8 @@ Application mobile de [Forge Audio](https://github.com/Heiphaistos/Forge-audio-)
 - Se comporte comme une vraie application de musique : **pause pendant un appel** (reprise après), **pause quand le casque est débranché** ou le Bluetooth déconnecté.
 - **Partager → Forge Audio** depuis YouTube, Spotify, SoundCloud, Deezer… : le titre est lu, une playlist est importée.
 - **Retour** ferme d'abord le panneau ouvert (lecteur plein écran, menu, égaliseur…) puis revient à la vue précédente ; sur l'écran d'accueil il réduit l'application sans couper la musique.
+- **Widget d'écran d'accueil** (4x1) : pochette, titre et boutons ⏮ ⏯ ⏭ ; un appui ouvre l'application si elle est fermée.
+- **Android Auto** : lecture en cours, commandes, et parcours des *Titres likés*, *Playlists* et *Écoutés récemment*. Ouvrez l'application une fois sur le téléphone avant de partir. L'application étant installée hors Play Store, activez dans Android Auto les paramètres développeur (appuyer 10 fois sur la version) puis **Sources inconnues**.
 - **Vidéo en plein écran** (paysage, barres masquées ; Retour pour sortir).
 - **Téléchargements** (MP3, audio, vidéo) et **export** de la bibliothèque enregistrés dans *Téléchargements*.
 - Les liens vers d'autres sites (source YouTube, GitHub…) s'ouvrent dans le navigateur, pas dans l'application.
