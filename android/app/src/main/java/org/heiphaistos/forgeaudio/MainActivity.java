@@ -1,12 +1,14 @@
 package org.heiphaistos.forgeaudio;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.net.Uri;
 import android.view.KeyEvent;
 import android.view.View;
 import androidx.core.graphics.Insets;
@@ -34,6 +36,8 @@ public class MainActivity extends BridgeActivity {
     private final Runnable poll = this::pollNowPlaying;
     /** Link shared to the app, delivered once the player page is ready. */
     private String pendingShare;
+    /** Command from Android Auto received while the app was closed, run once the player page is ready. */
+    private static String pendingJs;
 
     private static final String NOW_PLAYING_JS =
         "(function(){try{return window.__forgeNowPlaying?JSON.stringify(window.__forgeNowPlaying()):null}catch(e){return null}})()";
@@ -163,11 +167,37 @@ public class MainActivity extends BridgeActivity {
 
     /** Same with a number (seek: position in seconds). */
     static void remote(String action, double value) {
+        run(remoteJs(action, value));
+    }
+
+    static String remoteJs(String action, double value) {
+        String arg = Double.isNaN(value) ? "" : "," + value;
+        return "window.__forgeRemote && window.__forgeRemote('" + action.replaceAll("[^a-z]", "") + "'" + arg + ")";
+    }
+
+    /** Run a script in the web player page (nothing when the app is closed). */
+    static void run(String js) {
         MainActivity activity = current.get();
         if (activity == null) return;
-        String arg = Double.isNaN(value) ? "" : "," + value;
-        activity.runOnUiThread(() -> activity.getBridge().getWebView().evaluateJavascript(
-            "window.__forgeRemote && window.__forgeRemote('" + action.replaceAll("[^a-z]", "") + "'" + arg + ")", null));
+        activity.runOnUiThread(() -> activity.getBridge().getWebView().evaluateJavascript(js, null));
+    }
+
+    /** Android Auto with the app closed: open it; the script runs once the player page is ready. */
+    static void openAndRun(Context context, String js) {
+        if (isAlive()) { run(js); return; }
+        pendingJs = js;
+        try {
+            context.startActivity(new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception ignored) {
+            // refused from the background: PlaybackService shows the reason in Android Auto
+        }
+    }
+
+    private void deliverPending(WebView wv) {
+        String js = pendingJs;
+        if (js == null) return;
+        wv.evaluateJavascript("(function(){if(!window.__forgeRemote)return false;" + js + ";return true})()",
+            done -> { if ("true".equals(done) && js.equals(pendingJs)) pendingJs = null; });
     }
 
     private void pollNowPlaying() {
@@ -177,6 +207,7 @@ public class MainActivity extends BridgeActivity {
             // Returns at once when already installed on this page (window.__forgeBlobPatch).
             if (!ForgeWeb.nativeJs.isEmpty()) wv.evaluateJavascript(ForgeWeb.nativeJs, null);
             deliverShare();
+            deliverPending(wv);
         } catch (Exception ignored) {
             // WebView not ready yet
         }
@@ -186,6 +217,7 @@ public class MainActivity extends BridgeActivity {
     private void onNowPlaying(String value) {
         try {
             if (value == null || "null".equals(value)) return;
+            rememberServer(getBridge().getWebView().getUrl());
             // evaluateJavascript returns a JSON-encoded string: decode it, then parse the object.
             String json = new JSONArray("[" + value + "]").getString(0);
             JSONObject np = new JSONObject(json);
@@ -196,6 +228,14 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {
             // Page without the player (login screen, server setup)
         }
+    }
+
+    /** Server of the player page, for Android Auto's library (PlaybackService reads it with the WebView's cookie). */
+    private void rememberServer(String url) {
+        Uri u = url == null ? null : Uri.parse(url);
+        if (u == null || u.getScheme() == null || u.getAuthority() == null || "localhost".equals(u.getHost())) return;
+        String origin = u.getScheme() + "://" + u.getAuthority();
+        if (!origin.equals(PlaybackService.server(this))) getSharedPreferences("forge", MODE_PRIVATE).edit().putString("server", origin).apply();
     }
 
     /** Compares dotted versions (0.4.10 > 0.4.9). */

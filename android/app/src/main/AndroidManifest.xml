@@ -32,15 +32,21 @@
 
         </activity>
 
-        <!-- Background playback: media notification, lock screen and headset buttons. -->
+        <!-- Background playback: media notification, lock screen and headset buttons; Android Auto's media browser. -->
         <service
             android:name=".PlaybackService"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
         </service>
+
+        <!-- Android Auto: media app (res/xml/automotive_app_desc.xml). -->
+        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
 
         <receiver
             android:name="androidx.media.session.MediaButtonReceiver"
